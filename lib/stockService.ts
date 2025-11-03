@@ -8,7 +8,7 @@ let nseIndiaInstance: any = null
 function getNseIndiaInstance() {
   if (!NseIndia) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // Dynamic require for optional dependency (only loaded when USE_REAL_API=true)
       NseIndia = require("stock-nse-india").NseIndia
       
     } catch (error) {

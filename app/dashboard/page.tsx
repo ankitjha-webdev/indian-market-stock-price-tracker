@@ -49,6 +49,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchStocks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter])
 
   const handleRefresh = async () => {
