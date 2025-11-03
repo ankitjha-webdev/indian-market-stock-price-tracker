@@ -2,20 +2,29 @@ import { NextRequest, NextResponse } from "next/server"
 import { fetchAndUpdateStocks } from "@/lib/stockService"
 import { prisma } from "@/lib/prisma"
 import { getUndervaluedStocks } from "@/lib/getUndervaluedStocks"
+import { getPopularStockSymbols } from "@/lib/dummyStockData"
 
 /**
  * POST /api/stocks/update
  * Cron endpoint to update all tracked stocks and recalculate undervalued stocks
- * Requires CRON_SECRET header for security
+ * 
+ * Security:
+ * - For Vercel Cron: Automatically verified by Vercel (x-vercel-signature header)
+ * - For manual/external: Requires CRON_SECRET in Authorization header
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify cron secret
-    const authHeader = request.headers.get("authorization")
-    const cronSecret = process.env.CRON_SECRET
+    // Check if this is a Vercel Cron request
+    const isVercelCron = request.headers.get("x-vercel-signature")
+    
+    // If not Vercel Cron, verify authorization header
+    if (!isVercelCron) {
+      const authHeader = request.headers.get("authorization")
+      const cronSecret = process.env.CRON_SECRET
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
     }
 
     // Get all tracked stocks or popular Indian stocks
@@ -28,22 +37,11 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // If no tracked stocks, use popular NSE stocks
+    // If no tracked stocks, use popular NSE stocks (from dummy data list)
     const symbolsToUpdate =
       trackedStocks.length > 0
-        ? trackedStocks.map((s) => s.symbol)
-        : [
-            "RELIANCE",
-            "TCS",
-            "HDFCBANK",
-            "INFY",
-            "HINDUNILVR",
-            "ICICIBANK",
-            "BHARTIARTL",
-            "SBIN",
-            "BAJFINANCE",
-            "ITC",
-          ]
+        ? trackedStocks.map((s: { symbol: string }) => s.symbol)
+        : getPopularStockSymbols()
 
     // Fetch and update stocks
     const updateResults = await fetchAndUpdateStocks(symbolsToUpdate)

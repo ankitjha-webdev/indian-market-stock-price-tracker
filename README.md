@@ -16,7 +16,7 @@ A production-ready Next.js 14 application to track and discover undervalued Indi
 - **Next.js 14** (App Router, TypeScript, Server Actions)
 - **Tailwind CSS** + **ShadCN UI** for design system
 - **Prisma ORM** with PostgreSQL
-- **Axios** for API calls
+- **stock-nse-india** for live NSE stock data
 - **node-cron** for scheduled tasks
 - **Chart.js** for stock trend visualization (ready for implementation)
 - **Zustand** for global state management (ready for implementation)
@@ -31,13 +31,16 @@ npm install
 
 2. **Setup environment variables**:
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (copy from `env.example.txt`):
 
 ```env
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/stock_tracker?schema=public"
 
-# NSE/BSE API (use a free API service or NSE official API)
+# Stock Data Source (uses dummy data by default - no API key needed!)
+USE_REAL_API=false
+
+# NSE/BSE API (only used when USE_REAL_API=true)
 NSE_API_URL="https://www.nseindia.com/api"
 
 # Cron Job Secret
@@ -46,6 +49,8 @@ CRON_SECRET="your-secret-key-here-change-in-production"
 # Next Auth URL (for cron jobs)
 NEXTAUTH_URL="http://localhost:3000"
 ```
+
+> **Note**: The app uses **dummy stock data by default**, so you can run it immediately without any API setup! See "Stock Data" section below for switching to real API.
 
 3. **Setup Database**:
 
@@ -56,6 +61,9 @@ npx prisma generate
 # Run migrations
 npx prisma migrate dev --name init
 
+# Seed database with dummy stock data (optional, but recommended)
+# Visit http://localhost:3000/api/stocks/seed after starting the server
+
 # (Optional) Open Prisma Studio to view data
 npx prisma studio
 ```
@@ -65,6 +73,12 @@ npx prisma studio
 ```bash
 npm run dev
 ```
+
+5. **Seed initial stock data** (recommended):
+
+After the server starts, visit: [http://localhost:3000/api/stocks/seed](http://localhost:3000/api/stocks/seed)
+
+This will populate the database with 20 popular Indian stocks using dummy data.
 
 Open [http://localhost:3000](http://localhost:3000) to see the app.
 
@@ -106,7 +120,7 @@ Get all stocks with optional filters:
 - `?undervalued=true` - Only undervalued stocks
 
 ### `GET /api/stocks/fetch?symbol=RELIANCE`
-Fetch real-time data for a single stock.
+Fetch data for a single stock (uses dummy data by default).
 
 ### `POST /api/stocks/fetch`
 Fetch multiple stocks:
@@ -115,6 +129,25 @@ Fetch multiple stocks:
   "symbols": ["RELIANCE", "TCS", "INFY"]
 }
 ```
+
+### `GET /api/stocks/seed` or `POST /api/stocks/seed`
+Seed database with all available dummy stocks (20 popular Indian stocks). Perfect for initial setup!
+
+### `GET /api/stocks/populate-all` or `POST /api/stocks/populate-all`
+**Populate database with ALL NSE stocks** (requires `USE_REAL_API=true`)
+
+Query parameters:
+- `?limit=50` - Limit number of stocks to fetch (for testing)
+- `?batchSize=10` - Stocks per batch (default: 10)
+- `?delayBetweenBatches=1000` - Delay between batches in ms (default: 1000)
+- `?delayBetweenRequests=200` - Delay between requests in ms (default: 200)
+
+Example:
+```
+GET /api/stocks/populate-all?limit=50
+```
+
+⚠️ **Warning**: Fetching all NSE stocks can take a very long time (there are thousands of stocks). Use `limit` parameter for testing.
 
 ### `POST /api/stocks/update`
 Cron endpoint to update all tracked stocks. Requires `Authorization: Bearer <CRON_SECRET>` header.
@@ -144,12 +177,31 @@ Each stock gets an "undervalued score" - higher = more undervalued.
 
 ## ⏰ Cron Job Setup
 
-### Option 1: Using node-cron (Development)
+### Option 1: Vercel Cron (Production - Recommended)
+The project is configured with **Vercel Cron** for automatic daily stock updates.
+
+**Configuration:**
+- File: `vercel.json` - Contains cron schedule
+- Schedule: `30 3 * * *` (3:30 AM UTC = 9:00 AM IST)
+- Endpoint: `/api/stocks/update`
+
+**How it works:**
+1. Deploy to Vercel
+2. Vercel automatically detects the `vercel.json` cron configuration
+3. The cron job runs daily at the specified time
+4. No additional setup required!
+
+**View Cron Jobs in Vercel:**
+- Go to your project dashboard → Settings → Cron Jobs
+- You'll see the scheduled job there
+
+### Option 2: Using node-cron (Development/Local)
 The cron job is set up in `lib/cron.ts` and runs at 9:00 AM IST daily.
 
-### Option 2: External Cron Service (Production)
+**Note:** This only works in a long-running process. For Next.js, prefer Vercel Cron in production.
+
+### Option 3: External Cron Service
 Use a service like:
-- **Vercel Cron** (if deploying on Vercel)
 - **GitHub Actions** (schedule workflow)
 - **External cron service** (call `/api/stocks/update` endpoint)
 
@@ -159,18 +211,52 @@ Example cron command:
   -H "Authorization: Bearer your-cron-secret"
 ```
 
-### Option 3: Manual Update Script
+### Option 4: Manual Update Script
 ```bash
 node scripts/update-stocks.js
 ```
 
+## 📊 Stock Data
+
+### Using Dummy Data (Default)
+The app uses **realistic dummy data** by default for 20 popular Indian stocks. This means:
+- ✅ No API keys required
+- ✅ Works offline
+- ✅ Perfect for development and testing
+- ✅ Includes realistic prices, P/E ratios, and market caps
+
+Available stocks include: RELIANCE, TCS, HDFCBANK, INFY, HINDUNILVR, ICICIBANK, BHARTIARTL, SBIN, BAJFINANCE, ITC, and more.
+
+### Using Live NSE Data
+The app integrates with the `stock-nse-india` npm package to fetch live data from the National Stock Exchange of India:
+- ✅ No API keys required (uses official NSE public endpoints)
+- ✅ Real-time stock prices and market data
+- ✅ Automatic fallback to dummy data on errors
+
+To switch to live NSE data:
+
+1. **Install dependencies** (if not already installed):
+   ```bash
+   npm install
+   ```
+   The `stock-nse-india` package is already included in dependencies.
+
+2. **Set environment variable**:
+   ```env
+   USE_REAL_API=true
+   ```
+
+3. **That's it!** The app will automatically use the `stock-nse-india` package to fetch live data from NSE.
+   - No API keys required (uses official NSE public endpoints)
+   - Real-time stock prices, P/E ratios, market caps, and 52-week highs/lows
+   - Automatically falls back to dummy data if API fails
+
+The dummy data structure in `lib/dummyStockData.ts` can be easily extended with more stocks.
+
 ## 🎨 Customization
 
-### Adding More Stocks
-Stock data is fetched from the NSE API. In development, mock data is generated. To add real stocks:
-1. Update the symbols in `lib/stockService.ts`
-2. Ensure `NSE_API_URL` is correctly configured
-3. Call `/api/stocks/fetch` with the stock symbols
+### Adding More Dummy Stocks
+Edit `lib/dummyStockData.ts` to add more stocks to the `DUMMY_STOCKS` object.
 
 ### Modifying Undervalued Criteria
 Edit `lib/getUndervaluedStocks.ts` to adjust the scoring algorithm.

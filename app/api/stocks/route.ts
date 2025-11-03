@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getUndervaluedStocks } from "@/lib/getUndervaluedStocks"
 
 /**
  * GET /api/stocks
@@ -13,6 +14,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const tracked = searchParams.get("tracked")
     const undervalued = searchParams.get("undervalued")
+
+    // If filtering by undervalued, ensure flags are up-to-date
+    if (undervalued === "true") {
+      // Recalculate undervalued stocks to ensure flags are current
+      await getUndervaluedStocks()
+    }
 
     const where: {
       isTracked?: boolean

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, TrendingDown, Settings } from "lucide-react"
+import { Home, TrendingDown, Settings, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/undervalued", label: "Undervalued", icon: TrendingDown },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/admin/populate-stocks", label: "Admin", icon: Database },
 ]
 
 export function Navbar() {

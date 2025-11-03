@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { fetchStockData, generateMockStockData, updateStockInDB } from "@/lib/stockService"
+import { fetchStockData, updateStockInDB } from "@/lib/stockService"
 
 /**
  * GET /api/stocks/fetch?symbol=RELIANCE
@@ -17,14 +17,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let stockData = await fetchStockData(symbol.toUpperCase())
-
-    // Fallback to mock data in development
-    if (!stockData && process.env.NODE_ENV === "development") {
-      stockData = generateMockStockData(symbol.toUpperCase())
-    }
+    const stockData = await fetchStockData(symbol.toUpperCase())
 
     if (!stockData) {
+      // This should rarely happen as stockService has multiple fallbacks
       return NextResponse.json(
         { error: "Failed to fetch stock data" },
         { status: 404 }
@@ -68,12 +64,7 @@ export async function POST(request: NextRequest) {
 
     for (const symbol of symbols) {
       try {
-        let stockData = await fetchStockData(symbol.toUpperCase())
-
-        // Fallback to mock data in development
-        if (!stockData && process.env.NODE_ENV === "development") {
-          stockData = generateMockStockData(symbol.toUpperCase())
-        }
+        const stockData = await fetchStockData(symbol.toUpperCase())
 
         if (stockData) {
           const updatedStock = await updateStockInDB(stockData)

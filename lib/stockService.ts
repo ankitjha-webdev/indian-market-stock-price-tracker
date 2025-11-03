@@ -1,5 +1,27 @@
-import axios from "axios"
 import { prisma } from "@/lib/prisma"
+import { getDummyStockData } from "@/lib/dummyStockData"
+
+// Lazy load stock-nse-india only when real API is needed
+let NseIndia: any = null
+let nseIndiaInstance: any = null
+
+function getNseIndiaInstance() {
+  if (!NseIndia) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      NseIndia = require("stock-nse-india").NseIndia
+      
+    } catch (error) {
+      console.error("Failed to load stock-nse-india package:", error)
+      return null
+    }
+  }
+  if (!nseIndiaInstance && NseIndia) {
+    nseIndiaInstance = new NseIndia()
+    console.log("nseIndiaInstance-------------------", nseIndiaInstance);
+  }
+  return nseIndiaInstance
+}
 
 interface NSEStockData {
   symbol: string
@@ -13,39 +35,111 @@ interface NSEStockData {
 }
 
 /**
- * Fetch stock data from NSE API or fallback to mock data
- * Note: NSE API requires proper headers and may have rate limits
- * For production, consider using a paid API service or implementing proper rate limiting
+ * Use dummy data by default. Set USE_REAL_API=true in .env to use live API.
+ * This makes it easy to switch between dummy and real data.
+ */
+const USE_DUMMY_DATA = process.env.USE_REAL_API !== "true"
+
+/**
+ * Fetch stock data from NSE API using stock-nse-india package or use dummy data
+ * 
+ * To switch to real API:
+ * 1. Set USE_REAL_API=true in your .env file
+ * 2. The function will automatically use the stock-nse-india package
  */
 export async function fetchStockData(symbol: string): Promise<NSEStockData | null> {
-  try {
-    // In production, replace this with actual NSE/BSE API
-    // Example: https://www.nseindia.com/api/quote-equity?symbol=RELIANCE
-    const response = await axios.get(`${process.env.NSE_API_URL}/quote-equity`, {
-      params: { symbol },
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        Accept: "application/json",
-      },
-      timeout: 10000,
-    })
-
-    if (response.data) {
+  // Use dummy data by default (easy to switch)
+  if (USE_DUMMY_DATA) {
+    const dummyData = getDummyStockData(symbol)
+    if (dummyData) {
       return {
-        symbol: response.data.info?.symbol || symbol,
-        companyName: response.data.info?.companyName || symbol,
-        lastPrice: response.data.priceInfo?.lastPrice || 0,
-        pChange: response.data.priceInfo?.pChange || 0,
-        marketCap: response.data.preOpenMarket?.marketCap,
-        pe: response.data.keyIndicators?.pe,
-        weekHigh52: response.data.priceInfo?.weekHigh52,
-        weekLow52: response.data.priceInfo?.weekLow52,
+        symbol: dummyData.symbol,
+        companyName: dummyData.companyName,
+        lastPrice: dummyData.lastPrice,
+        pChange: dummyData.pChange,
+        marketCap: dummyData.marketCap,
+        pe: dummyData.pe,
+        weekHigh52: dummyData.weekHigh52,
+        weekLow52: dummyData.weekLow52,
+      }
+    }
+    // If symbol not in dummy data, generate generic mock data
+    return generateMockStockData(symbol)
+  }
+
+  // Real API call using stock-nse-india package (only used when USE_REAL_API=true)
+  try {
+    const nseIndia = getNseIndiaInstance()
+
+    if (!nseIndia) {
+      console.warn("stock-nse-india package not available, falling back to dummy data")
+      return getDummyStockData(symbol) || generateMockStockData(symbol)
+    }
+
+    // Fetch equity details from NSE
+    const stockDetails = await nseIndia.getEquityDetails(symbol.toUpperCase())
+
+    if (stockDetails && stockDetails.info && stockDetails.priceInfo) {
+      // Extract P/E Ratio from metadata.pdSymbolPe (actual location in API response)
+      let peRatio: number | undefined
+      if (stockDetails.metadata?.pdSymbolPe && stockDetails.metadata.pdSymbolPe !== "NA") {
+        const peValue = parseFloat(stockDetails.metadata.pdSymbolPe.toString())
+        if (!isNaN(peValue)) {
+          peRatio = peValue
+        }
+      }
+
+      // Calculate Market Cap from lastPrice * issuedSize (not directly provided in API)
+      let marketCap: number | undefined
+      if (
+        stockDetails.priceInfo?.lastPrice &&
+        stockDetails.securityInfo?.issuedSize
+      ) {
+        const lastPrice = parseFloat(stockDetails.priceInfo.lastPrice.toString())
+        const issuedSize = parseFloat(stockDetails.securityInfo.issuedSize.toString())
+        if (!isNaN(lastPrice) && !isNaN(issuedSize)) {
+          marketCap = lastPrice * issuedSize // Market Cap = Price × Outstanding Shares
+        }
+      }
+
+      // Extract 52-week high/low from priceInfo.weekHighLow
+      let weekHigh52: number | undefined
+      let weekLow52: number | undefined
+
+      if (stockDetails.priceInfo?.weekHighLow) {
+        if (stockDetails.priceInfo.weekHighLow.max) {
+          weekHigh52 = parseFloat(stockDetails.priceInfo.weekHighLow.max.toString())
+        }
+        if (stockDetails.priceInfo.weekHighLow.min) {
+          weekLow52 = parseFloat(stockDetails.priceInfo.weekHighLow.min.toString())
+        }
+      }
+
+      // Fallback to intraDayHighLow if weekHighLow not available
+      if (!weekHigh52 && stockDetails.priceInfo?.intraDayHighLow?.max) {
+        weekHigh52 = parseFloat(stockDetails.priceInfo.intraDayHighLow.max.toString())
+      }
+      if (!weekLow52 && stockDetails.priceInfo?.intraDayHighLow?.min) {
+        weekLow52 = parseFloat(stockDetails.priceInfo.intraDayHighLow.min.toString())
+      }
+
+      // Map the response structure to our NSEStockData interface
+      return {
+        symbol: stockDetails.info.symbol || symbol.toUpperCase(),
+        companyName: stockDetails.info.companyName || symbol,
+        lastPrice: stockDetails.priceInfo.lastPrice || 0,
+        pChange: stockDetails.priceInfo.pChange || 0,
+        marketCap: marketCap && !isNaN(marketCap) ? marketCap : undefined,
+        pe: peRatio && !isNaN(peRatio) ? peRatio : undefined,
+        weekHigh52: weekHigh52 && !isNaN(weekHigh52) ? weekHigh52 : undefined,
+        weekLow52: weekLow52 && !isNaN(weekLow52) ? weekLow52 : undefined,
       }
     }
   } catch (error) {
-    console.error(`Error fetching stock data for ${symbol}:`, error)
-    // Return null to allow fallback to mock data or existing data
-    return null
+    console.error(`Error fetching stock data for ${symbol} from NSE:`, error)
+    // Fallback to dummy data if API fails
+    console.log(`Falling back to dummy data for ${symbol}`)
+    return getDummyStockData(symbol) || generateMockStockData(symbol)
   }
 
   return null
@@ -62,7 +156,7 @@ export function generateMockStockData(symbol: string): NSEStockData {
     symbol,
     companyName: `${symbol} Ltd.`,
     lastPrice: parseFloat(basePrice.toFixed(2)),
-    pChange: (Math.random() * 10 - 5).toFixed(2),
+    pChange: parseFloat((Math.random() * 10 - 5).toFixed(2)),
     marketCap: Math.random() * 50000 + 5000,
     pe: parseFloat(peRatio.toFixed(2)),
     weekHigh52: parseFloat((basePrice * 1.3).toFixed(2)),
@@ -104,29 +198,104 @@ export async function updateStockInDB(data: NSEStockData) {
 }
 
 /**
- * Fetch and update multiple stocks
+ * Get all stock symbols from NSE
+ * Returns empty array if using dummy data or if API fails
  */
-export async function fetchAndUpdateStocks(symbols: string[]) {
+export async function getAllNSEStockSymbols(): Promise<string[]> {
+  if (USE_DUMMY_DATA) {
+    console.log("Using dummy data mode - returning dummy stock symbols")
+    return []
+  }
+
+  try {
+    const nseIndia = getNseIndiaInstance()
+    if (!nseIndia) {
+      console.warn("stock-nse-india package not available")
+      return []
+    }
+
+    // Check if getAllStockSymbols method exists
+    if (typeof nseIndia.getAllStockSymbols === "function") {
+      const symbols = await nseIndia.getAllStockSymbols()
+      return Array.isArray(symbols) ? symbols.map((s: string) => s.toUpperCase()) : []
+    } else {
+      console.warn("getAllStockSymbols method not available in stock-nse-india")
+      return []
+    }
+  } catch (error) {
+    console.error("Error fetching all NSE stock symbols:", error)
+    return []
+  }
+}
+
+/**
+ * Fetch and update multiple stocks with rate limiting
+ * Uses dummy data by default (set USE_REAL_API=true to use live API)
+ */
+export async function fetchAndUpdateStocks(
+  symbols: string[],
+  options?: {
+    batchSize?: number
+    delayBetweenBatches?: number
+    delayBetweenRequests?: number
+  }
+) {
+  const results = []
+  const batchSize = options?.batchSize || 10
+  const delayBetweenBatches = options?.delayBetweenBatches || 1000 // 1 second
+  const delayBetweenRequests = options?.delayBetweenRequests || 200 // 200ms
+
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize)
+    console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(symbols.length / batchSize)} (${batch.length} stocks)`)
+
+    for (const symbol of batch) {
+      try {
+        const stockData = await fetchStockData(symbol)
+        
+        if (stockData) {
+          const updated = await updateStockInDB(stockData)
+          results.push({ symbol, success: true, stock: updated })
+        } else {
+          // Final fallback: generate generic mock data
+          const fallbackData = generateMockStockData(symbol)
+          const updated = await updateStockInDB(fallbackData)
+          results.push({ symbol, success: true, stock: updated, note: "Generated fallback data" })
+        }
+
+        // Small delay between requests to avoid rate limiting
+        if (delayBetweenRequests > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayBetweenRequests))
+        }
+      } catch (error) {
+        console.error(`Error processing stock ${symbol}:`, error)
+        results.push({ symbol, success: false, error: String(error) })
+      }
+    }
+
+    // Delay between batches (except for the last batch)
+    if (i + batchSize < symbols.length && delayBetweenBatches > 0) {
+      console.log(`Waiting ${delayBetweenBatches}ms before next batch...`)
+      await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches))
+    }
+  }
+
+  return results
+}
+
+/**
+ * Bulk update stocks in database (more efficient for large datasets)
+ */
+export async function bulkUpdateStocksInDB(stocksData: NSEStockData[]) {
   const results = []
 
-  for (const symbol of symbols) {
+  for (const data of stocksData) {
     try {
-      let stockData = await fetchStockData(symbol)
-
-      // Fallback to mock data if API fails (for development)
-      if (!stockData && process.env.NODE_ENV === "development") {
-        stockData = generateMockStockData(symbol)
-      }
-
-      if (stockData) {
-        const updated = await updateStockInDB(stockData)
-        results.push({ symbol, success: true, stock: updated })
-      } else {
-        results.push({ symbol, success: false, error: "No data available" })
-      }
+      const stock = await updateStockInDB(data)
+      results.push({ symbol: data.symbol, success: true, stock })
     } catch (error) {
-      console.error(`Error processing stock ${symbol}:`, error)
-      results.push({ symbol, success: false, error: String(error) })
+      console.error(`Error updating stock ${data.symbol}:`, error)
+      results.push({ symbol: data.symbol, success: false, error: String(error) })
     }
   }
 

@@ -52,29 +52,35 @@ export async function getUndervaluedStocks(): Promise<UndervaluedStock[]> {
     }
 
     // Factor 2: Price relative to 52-week high
-    const priceFromHigh = ((stock.weekHigh - stock.currentPrice) / stock.weekHigh) * 100
-    if (priceFromHigh > 30) {
-      score += 40
-      reasons.push("Far below 52-week high")
-    } else if (priceFromHigh > 20) {
-      score += 25
-      reasons.push("Below 52-week high")
-    } else if (priceFromHigh > 10) {
-      score += 10
-      reasons.push("Moderately below high")
+    if (stock.weekHigh > 0 && stock.currentPrice > 0) {
+      const priceFromHigh = ((stock.weekHigh - stock.currentPrice) / stock.weekHigh) * 100
+      if (priceFromHigh > 30) {
+        score += 40
+        reasons.push("Far below 52-week high")
+      } else if (priceFromHigh > 20) {
+        score += 25
+        reasons.push("Below 52-week high")
+      } else if (priceFromHigh > 10) {
+        score += 10
+        reasons.push("Moderately below high")
+      }
     }
 
     // Factor 3: Price relative to 52-week low (not too close to low = not distressed)
-    const priceFromLow = ((stock.currentPrice - stock.weekLow) / stock.weekLow) * 100
-    if (priceFromLow > 20 && priceFromLow < 50) {
-      score += 20
-      reasons.push("Healthy price above low")
+    if (stock.weekLow > 0 && stock.currentPrice > 0) {
+      const priceFromLow = ((stock.currentPrice - stock.weekLow) / stock.weekLow) * 100
+      if (priceFromLow > 20 && priceFromLow < 50) {
+        score += 20
+        reasons.push("Healthy price above low")
+      }
     }
 
     // Factor 4: Market cap (smaller companies might be undervalued)
+    // Market cap is stored as actual number (not in crores)
+    // 5000 crores = 50,000,000,000 (50 billion)
     if (stock.marketCap) {
       // Less than 5000 crores = small cap
-      if (stock.marketCap < 5000) {
+      if (stock.marketCap < 50000000000) {
         score += 10
         reasons.push("Small cap potential")
       }
