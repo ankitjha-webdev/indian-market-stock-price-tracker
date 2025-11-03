@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  trackedStocks TrackedStock[]
+}
+
+model Stock {
+  id            String         @id @default(cuid())
+  name          String
+  symbol        String         @unique
+  currentPrice  Float
+  peRatio       Float?
+  weekHigh      Float
+  weekLow       Float
+  marketCap     Float?
+  isTracked     Boolean        @default(false)
+  isUndervalued Boolean        @default(false)
+  updatedAt     DateTime       @default(now()) @updatedAt
+  trackedStocks TrackedStock[]
+
+  @@index([symbol])
+  @@index([isUndervalued])
+  @@index([isTracked])
+}
+
+model TrackedStock {
+  id        String   @id @default(cuid())
+  userId    String
+  stockId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stockId])
+  @@index([userId])
+  @@index([stockId])
+}
+
