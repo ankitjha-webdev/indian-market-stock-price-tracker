@@ -67,21 +67,25 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/stocks/update
- * Manual trigger for testing (same as POST but no auth required in dev)
+ * Vercel Cron uses GET requests, so we need to handle them
+ * Manual trigger for testing (same as POST)
  */
 export async function GET(request: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
+  // Check if this is a Vercel Cron request (GET with x-vercel-signature header)
+  const isVercelCron = request.headers.get("x-vercel-signature")
+  
+  // Allow Vercel Cron GET requests in production
+  // Allow manual GET requests in development
+  if (process.env.NODE_ENV === "production" && !isVercelCron) {
     return NextResponse.json({ error: "Method not allowed" }, { status: 405 })
   }
 
-  // Reuse POST logic but without auth in dev
-  const response = await POST(
-    new NextRequest(request.url, {
-      method: "POST",
-      headers: new Headers(),
-    })
-  )
+  // Reuse POST logic - create a POST request internally
+  const postRequest = new NextRequest(request.url, {
+    method: "POST",
+    headers: request.headers, // Preserve headers including x-vercel-signature
+  })
 
-  return response
+  return POST(postRequest)
 }
 
