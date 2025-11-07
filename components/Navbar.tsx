@@ -2,15 +2,22 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, TrendingDown, Settings, Database } from "lucide-react"
+import { Home, TrendingDown, Settings, Database, Users, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/undervalued", label: "Undervalued", icon: TrendingDown },
+  { href: "/quarter-results", label: "Quarter Results", icon: Calendar },
+  { href: "/fii-dii", label: "FII/DII Activity", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/admin/populate-stocks", label: "Admin", icon: Database },
+]
+
+const adminItems = [
+  { href: "/admin/populate-stocks", label: "Populate Stocks", icon: Database },
+  { href: "/admin/populate-fii-dii", label: "Populate FII/DII", icon: Users },
 ]
 
 export function Navbar() {

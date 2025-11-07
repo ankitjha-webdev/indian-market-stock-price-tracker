@@ -5,34 +5,36 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 /**
- * Admin page to trigger population of all NSE stocks
- * This provides a UI for the populate-all endpoint
+ * Admin page to trigger population of FII/DII data for all stocks
  */
-export default function PopulateAllStocksPage() {
+export default function PopulateFiiDiiPage() {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<string>("")
   const [result, setResult] = useState<any>(null)
-  const [limit, setLimit] = useState<string>("50")
   const [batchSize, setBatchSize] = useState<string>("10")
+  const [limit, setLimit] = useState<string>("")
 
   const handlePopulate = async () => {
     setLoading(true)
-    setProgress("Starting to fetch all NSE stocks...")
+    setProgress("Starting to fetch FII/DII data for all stocks...")
     setResult(null)
 
     try {
       const params = new URLSearchParams()
-      if (limit) params.append("limit", limit)
+      params.append("all", "true")
       if (batchSize) params.append("batchSize", batchSize)
+      if (limit) params.append("limit", limit)
 
-      const url = `/api/stocks/populate-all?${params.toString()}`
+      const url = `/api/stocks/fii-dii/update?${params.toString()}`
       const response = await fetch(url, { method: "POST" })
 
       const data = await response.json()
       setResult(data)
 
       if (data.success) {
-        setProgress(`✅ Successfully processed ${data.summary?.processed || 0} stocks`)
+        setProgress(
+          `✅ Successfully processed ${data.summary?.success || 0}/${data.summary?.total || 0} stocks`
+        )
       } else {
         setProgress(`❌ Error: ${data.error || "Unknown error"}`)
       }
@@ -47,34 +49,35 @@ export default function PopulateAllStocksPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Populate All NSE Stocks</h1>
+        <h1 className="text-3xl font-bold mb-2">Populate FII/DII Data</h1>
         <p className="text-muted-foreground">
-          Fetch and populate database with all stocks from National Stock Exchange of India
+          Fetch and populate FII/DII (Foreign/Domestic Institutional Investors) data for all stocks
+          in the database
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Stock Population Settings</CardTitle>
+          <CardTitle>FII/DII Data Population Settings</CardTitle>
           <CardDescription>
-            Configure and execute the population of all NSE stocks
+            Configure and execute the population of FII/DII data for all stocks
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              Limit (for testing - leave empty for all stocks)
+              Limit (optional - leave empty to process all stocks)
             </label>
             <input
               type="number"
               value={limit}
               onChange={(e) => setLimit(e.target.value)}
-              placeholder="50"
+              placeholder="e.g., 50 (for testing)"
               className="w-full px-3 py-2 border rounded-md bg-background"
               disabled={loading}
             />
             <p className="text-xs text-muted-foreground">
-              ⚠️ Fetching all NSE stocks can take hours. Use limit for testing.
+              ⚠️ Processing all stocks can take a long time. Use limit for testing first.
             </p>
           </div>
 
@@ -94,7 +97,7 @@ export default function PopulateAllStocksPage() {
           </div>
 
           <Button onClick={handlePopulate} disabled={loading} className="w-full" size="lg">
-            {loading ? "Processing... Please wait..." : "🚀 Populate All NSE Stocks"}
+            {loading ? "Processing... Please wait..." : "🚀 Populate FII/DII Data for All Stocks"}
           </Button>
 
           {progress && (
@@ -108,44 +111,45 @@ export default function PopulateAllStocksPage() {
               <h3 className="font-semibold">Result:</h3>
               {result.summary && (
                 <div className="text-sm space-y-1">
-                  <p><strong>Total Symbols Found:</strong> {result.summary.totalSymbols}</p>
-                  <p><strong>Processed:</strong> {result.summary.processed}</p>
-                  <p><strong>Success:</strong> {result.summary.success}</p>
-                  <p><strong>Failed:</strong> {result.summary.failed}</p>
-                  <p><strong>Duration:</strong> {result.summary.duration}</p>
-                  <p><strong>Existing in DB:</strong> {result.summary.existingInDB}</p>
+                  <p>
+                    <strong>Total Stocks:</strong> {result.summary.total}
+                  </p>
+                  <p>
+                    <strong>Processed:</strong> {result.summary.processed}
+                  </p>
+                  <p>
+                    <strong>Success:</strong> {result.summary.success}
+                  </p>
+                  <p>
+                    <strong>Failed:</strong> {result.summary.failed}
+                  </p>
+                  <p>
+                    <strong>Duration:</strong> {result.summary.duration}
+                  </p>
+                  <p>
+                    <strong>Quarter:</strong> {result.quarter}
+                  </p>
                 </div>
               )}
               {result.error && (
                 <div className="text-sm text-destructive">
-                  <p><strong>Error:</strong> {result.error}</p>
+                  <p>
+                    <strong>Error:</strong> {result.error}
+                  </p>
                 </div>
               )}
             </div>
           )}
 
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-            <p className="text-sm font-medium mb-2">ℹ️ Related:</p>
-            <p className="text-xs mb-2">
-              After populating stocks, you can populate FII/DII data for all stocks:
-            </p>
-            <a
-              href="/admin/populate-fii-dii"
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              → Populate FII/DII Data
-            </a>
-          </div>
-
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-            <p className="text-sm font-medium mb-2">⚠️ Important Notes:</p>
+            <p className="text-sm font-medium mb-2">ℹ️ Information:</p>
             <ul className="text-xs space-y-1 list-disc list-inside">
-              <li>Requires <code className="bg-background px-1 py-0.5 rounded">USE_REAL_API=true</code> in .env</li>
-              <li>This operation can take a very long time (hours) for all stocks</li>
-              <li>Use the limit parameter to test with a smaller number first (e.g., 50)</li>
+              <li>This will process all stocks currently in the stock table</li>
+              <li>FII/DII data will be fetched using stock-nse-india package (if USE_REAL_API=true)</li>
+              <li>Falls back to dummy data if real API is not available</li>
               <li>The process respects rate limits with delays between requests</li>
-              <li>You can safely refresh the page and check progress in the server logs</li>
-              <li>Progress is logged to the server console, not this page</li>
+              <li>Progress is logged to the server console</li>
+              <li>Results show the quarter being processed</li>
             </ul>
           </div>
         </CardContent>

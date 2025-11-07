@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, TrendingDown, Star, StarOff } from "lucide-react"
+import { TrendingUp, TrendingDown, Star, StarOff, Users } from "lucide-react"
 import axios from "axios"
 
 interface StockCardProps {
@@ -18,6 +18,8 @@ interface StockCardProps {
   marketCap: number | null
   isTracked: boolean
   isUndervalued?: boolean
+  hasSignificantFiiDii?: boolean // Flag if stock has significant FII/DII activity
+  fiiDiiChange?: number | null // FII/DII change percentage
   onTrackChange?: (id: string, isTracked: boolean) => void
 }
 
@@ -32,6 +34,8 @@ export function StockCard({
   marketCap,
   isTracked,
   isUndervalued = false,
+  hasSignificantFiiDii = false,
+  fiiDiiChange,
   onTrackChange,
 }: StockCardProps) {
   const [tracking, setTracking] = useState(isTracked)
@@ -75,11 +79,19 @@ export function StockCard({
             <CardTitle className="text-xl">{symbol}</CardTitle>
             <CardDescription className="mt-1">{name}</CardDescription>
           </div>
-          {isUndervalued && (
-            <Badge variant="success" className="ml-2">
-              🔥 Undervalued
-            </Badge>
-          )}
+          <div className="flex flex-col gap-1 ml-2">
+            {isUndervalued && (
+              <Badge variant="success" className="text-xs">
+                🔥 Undervalued
+              </Badge>
+            )}
+            {hasSignificantFiiDii && fiiDiiChange !== null && (
+              <Badge variant="warning" className="text-xs">
+                <Users className="h-3 w-3 mr-1" />
+                FII/DII +{Math.abs(fiiDiiChange).toFixed(1)}%
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>

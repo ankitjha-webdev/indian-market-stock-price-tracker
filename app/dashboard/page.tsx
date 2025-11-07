@@ -17,6 +17,8 @@ interface Stock {
   marketCap: number | null
   isTracked: boolean
   isUndervalued: boolean
+  hasSignificantFiiDii?: boolean
+  fiiDiiChange?: number | null
   updatedAt: string
 }
 
@@ -131,6 +133,8 @@ export default function DashboardPage() {
             <StockCard
               key={stock.id}
               {...stock}
+              hasSignificantFiiDii={stock.hasSignificantFiiDii}
+              fiiDiiChange={stock.fiiDiiChange}
               onTrackChange={handleTrackChange}
             />
           ))}

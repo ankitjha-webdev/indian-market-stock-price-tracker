@@ -31,10 +31,38 @@ model Stock {
   isUndervalued Boolean        @default(false)
   updatedAt     DateTime       @default(now()) @updatedAt
   trackedStocks TrackedStock[]
+  fiiDiiData    FiiDiiHolding[]
+  quarterResults QuarterResult[]
 
   @@index([symbol])
   @@index([isUndervalued])
   @@index([isTracked])
+}
+
+model FiiDiiHolding {
+  id              String   @id @default(cuid())
+  stockId         String
+  quarter         String   // Format: "Q1-2025", "Q2-2025", etc.
+  quarterEndDate  DateTime
+  fiiHolding      Float?   // FII holding percentage
+  diiHolding      Float?   // DII holding percentage
+  totalInstitutional Float? // Total institutional holding (FII + DII)
+  previousQuarter String?  // Reference to previous quarter for comparison
+  fiiChange       Float?   // Change in FII holding vs previous quarter (%)
+  diiChange       Float?   // Change in DII holding vs previous quarter (%)
+  totalChange     Float?   // Total institutional change vs previous quarter (%)
+  isSignificant   Boolean  @default(false) // Flag if change is significant (>=5%)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, quarter])
+  @@index([stockId])
+  @@index([quarter])
+  @@index([isSignificant])
+  @@index([fiiChange])
+  @@index([diiChange])
 }
 
 model TrackedStock {
@@ -49,5 +77,28 @@ model TrackedStock {
   @@unique([userId, stockId])
   @@index([userId])
   @@index([stockId])
+}
+
+model QuarterResult {
+  id                String   @id @default(cuid())
+  stockId           String
+  quarter           String   // Format: "Q1-2025", "Q2-2025", etc.
+  quarterEndDate    DateTime // End date of the quarter (e.g., Mar 31, Jun 30, Sep 30, Dec 31)
+  expectedDate      DateTime // Expected announcement date (within 45 days of quarter end)
+  actualDate        DateTime? // Actual announcement date (null if not yet announced)
+  isAnnounced       Boolean  @default(false)
+  revenue           Float?   // Revenue for the quarter
+  profit            Float?   // Net profit for the quarter
+  eps               Float?   // Earnings per share
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, quarter])
+  @@index([stockId])
+  @@index([quarter])
+  @@index([expectedDate])
+  @@index([isAnnounced])
 }
 

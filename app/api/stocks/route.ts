@@ -36,15 +36,33 @@ export async function GET(request: NextRequest) {
 
     const stocks = await prisma.stock.findMany({
       where,
+      include: {
+        fiiDiiData: {
+          where: {
+            isSignificant: true,
+          },
+          orderBy: {
+            quarter: "desc",
+          },
+          take: 1, // Get latest significant FII/DII data
+        },
+      },
       orderBy: {
         updatedAt: "desc",
       },
     })
 
+    // Map stocks to include FII/DII flags
+    const stocksWithFiiDii = stocks.map((stock: any) => ({
+      ...stock,
+      hasSignificantFiiDii: stock.fiiDiiData.length > 0,
+      fiiDiiChange: stock.fiiDiiData[0]?.totalChange || stock.fiiDiiData[0]?.fiiChange || stock.fiiDiiData[0]?.diiChange || null,
+    }))
+
     return NextResponse.json({
       success: true,
-      count: stocks.length,
-      stocks,
+      count: stocksWithFiiDii.length,
+      stocks: stocksWithFiiDii,
     })
   } catch (error) {
     console.error("Error in /api/stocks:", error)

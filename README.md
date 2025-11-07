@@ -94,17 +94,20 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 │   │       └── [id]/track/route.ts # Track/untrack stocks
 │   ├── dashboard/                  # Dashboard page
 │   ├── undervalued/                # Undervalued stocks page
+│   ├── fii-dii/                    # FII/DII Activity Tracker page
 │   ├── settings/                   # Settings page
 │   ├── layout.tsx                  # Root layout with navbar
 │   └── globals.css                 # Global styles
 ├── components/
 │   ├── ui/                         # ShadCN UI components
 │   ├── StockCard.tsx               # Stock card component
+│   ├── FiiDiiCard.tsx              # FII/DII activity card component
 │   └── Navbar.tsx                  # Navigation bar
 ├── lib/
 │   ├── prisma.ts                   # Prisma client singleton
 │   ├── stockService.ts             # Stock fetching & update logic
 │   ├── getUndervaluedStocks.ts     # Undervalued calculation logic
+│   ├── fiiDiiService.ts            # FII/DII data fetching & analysis
 │   └── utils.ts                    # Utility functions
 ├── prisma/
 │   └── schema.prisma               # Database schema
@@ -165,6 +168,26 @@ Toggle tracking for a stock:
 }
 ```
 
+### `GET /api/stocks/fii-dii`
+Get FII/DII holdings data for stocks. Query params:
+- `?symbol=RELIANCE` - Get data for specific stock
+- `?quarter=Q1-2025` - Get data for specific quarter
+- `?significant=true` - Filter only significant changes
+
+### `GET /api/stocks/fii-dii/significant`
+Get stocks with significant FII/DII activity. Query params:
+- `?minChange=5` - Minimum percentage change (default: 5)
+- `?limit=10` - Limit number of results
+
+### `POST /api/stocks/fii-dii/update`
+Update FII/DII data for stocks. Body:
+```json
+{
+  "symbols": ["RELIANCE", "TCS"],
+  "quarter": "Q1-2025"
+}
+```
+
 ## 📊 Undervalued Stock Algorithm
 
 Stocks are marked as undervalued based on:
@@ -174,6 +197,46 @@ Stocks are marked as undervalued based on:
 4. **Market cap** (small caps may be undervalued)
 
 Each stock gets an "undervalued score" - higher = more undervalued.
+
+## 📈 FII/DII Activity Tracker
+
+The FII/DII Activity Tracker monitors institutional investor activity and highlights stocks where holdings have significantly increased.
+
+### How It Works
+
+1. **Quarterly Tracking**: FII/DII holdings are tracked quarterly (Q1, Q2, Q3, Q4)
+2. **Change Detection**: Compares current quarter with previous quarter
+3. **Significant Activity Flags**:
+   - **High**: 5-10% increase in FII/DII holdings
+   - **Very High**: 10-15% increase
+   - **Extreme**: 50%+ increase (doubled or more)
+4. **Visual Indicators**: Stocks with significant activity are marked with badges on the dashboard
+
+### Features
+
+- View stocks with significant FII/DII increases on `/fii-dii` page
+- Filter by activity level (High, Very High, Extreme)
+- Adjust minimum change threshold (5% to 50%)
+- See FII/DII badges on stock cards in dashboard
+- Historical quarter-by-quarter comparison
+
+### Data Sources
+
+**Current Status:** The `stock-nse-india` package's `getEquityDetails()` method does **not** include shareholding pattern or FII/DII holdings data. It only returns:
+- Stock info (symbol, company name, industry)
+- Price information (last price, change, 52-week high/low)
+- Metadata (P/E ratio, sector info)
+- Security info (face value, issued size)
+
+**FII/DII Data Options:**
+1. **Dummy Data (Current Default):** The system uses realistic dummy data for development and testing
+2. **NSE Official API:** NSE provides shareholding pattern data through their official APIs, but requires direct integration
+3. **Alternative Data Sources:** Third-party APIs or data providers that offer institutional holdings data
+
+**To Use Real FII/DII Data:**
+- Integrate with NSE's official shareholding pattern API endpoint
+- Or use alternative data sources that provide institutional holdings
+- Update `fetchFiiDiiData` in `lib/fiiDiiService.ts` to fetch from the chosen source
 
 ## ⏰ Cron Job Setup
 
